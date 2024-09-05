@@ -7,6 +7,20 @@ const int windowHeight{ 500 };
 const float cellSize{ 20 };
 const int cellThickness{ 3 };
 
+class Cell {
+public:
+    sf::RectangleShape shape;
+    bool isAlive = false;
+
+    Cell(sf::Vector2f position, sf::Vector2f size, sf::Color outlineColor = sf::Color(50, 50, 50), sf::Color fillColor = sf::Color(0, 0, 0), float thickness = 3.0f) {
+        shape.setSize(size);
+        shape.setPosition(position);
+        shape.setOutlineColor(outlineColor);
+        shape.setFillColor(fillColor);
+        shape.setOutlineThickness(thickness);
+    }
+};
+
 class Quadtree {
 public:
     sf::FloatRect bounds;
@@ -48,7 +62,7 @@ public:
         nodes[3] = new Quadtree(sf::FloatRect(bounds.left + subWidth, bounds.top + subHeight, subWidth, subHeight), level + 1, maxObjects, maxLevels); // Bottom Right
     }
 
-    int getIndex(const sf::FloatRect& rect, const std::vector<sf::RectangleShape>& shapes) {
+    int getIndex(const sf::FloatRect& rect, const std::vector<Cell>& cells) {
         int index = -1;
         float verticalMidpoint = bounds.left + bounds.width / 2;
         float horizontalMidpoint = bounds.top + bounds.height / 2;
@@ -71,11 +85,11 @@ public:
         return index;
     }
 
-    void insert(int rectIndex, std::vector<sf::RectangleShape>& shapes) {
+    void insert(int rectIndex, std::vector<Cell>& cells) {
         if (nodes[0] != nullptr) {
-            int index = getIndex(shapes[rectIndex].getGlobalBounds(), shapes);
+            int index = getIndex(cells[rectIndex].shape.getGlobalBounds(), cells);
             if (index != -1) {
-                nodes[index]->insert(rectIndex, shapes);
+                nodes[index]->insert(rectIndex, cells);
                 return;
             }
         }
@@ -89,9 +103,9 @@ public:
 
             auto it = objectIndices.begin();
             while (it != objectIndices.end()) {
-                int index = getIndex(shapes[*it].getGlobalBounds(), shapes);
+                int index = getIndex(cells[*it].shape.getGlobalBounds(), cells);
                 if (index != -1) {
-                    nodes[index]->insert(*it, shapes);
+                    nodes[index]->insert(*it, cells);
                     it = objectIndices.erase(it);
                 }
                 else {
@@ -101,12 +115,12 @@ public:
         }
     }
 
-    std::vector<int> retrieve(const sf::FloatRect& rect, const std::vector<sf::RectangleShape>& shapes) {
+    std::vector<int> retrieve(const sf::FloatRect& rect, const std::vector<Cell>& cells) {
         std::vector<int> result;
-        int index = getIndex(rect, shapes);
+        int index = getIndex(rect, cells);
 
         if (index != -1 && nodes[0] != nullptr) {
-            result = nodes[index]->retrieve(rect, shapes);
+            result = nodes[index]->retrieve(rect, cells);
         }
 
         for (auto& objectIndex : objectIndices) {
@@ -117,11 +131,38 @@ public:
     }
 };
 
+int getIndex(int row, int col, int width) {
+    return row * width + col;
+}
+
+std::vector<int> getNeighbors(int index, int width, int height) {
+    int row = index / width;
+    int col = index % width;
+
+    std::vector<int> neighbors;
+
+    for (int dr = -1; dr <= 1; ++dr) {
+        for (int dc = -1; dc <= 1; ++dc) {
+            if (dr == 0 && dc == 0) continue; // Skip the current cell itself
+
+            int newRow = row + dr;
+            int newCol = col + dc;
+
+            // Boundary check
+            if (newRow >= 0 && newRow < height && newCol >= 0 && newCol < width) {
+                neighbors.push_back(getIndex(newRow, newCol, width));
+            }
+        }
+    }
+
+    return neighbors;
+}
+
 int main() {
     sf::RenderWindow window(sf::VideoMode(windowWidth, windowHeight), "SFML works!");
     sf::View view(sf::FloatRect(0, 0, windowWidth, windowHeight));
 
-    std::vector<sf::RectangleShape> shapes;
+    std::vector<Cell> cells;
     Quadtree quadtree(sf::FloatRect(0, 0, windowWidth, windowHeight));
 
     int numCellsX = windowWidth / cellSize;
@@ -129,16 +170,10 @@ int main() {
 
     for (int i = 0; i < numCellsX; i++) {
         for (int r = 0; r < numCellsY; r++) {
-            sf::RectangleShape shape(sf::Vector2f(cellSize, cellSize));
-            shape.setOutlineColor(sf::Color(50, 50, 50));
-            shape.setFillColor(sf::Color(0, 0, 0));
-            shape.setOutlineThickness(cellThickness);
-            shape.setPosition(sf::Vector2f(i * cellSize, r * cellSize));
+            Cell c(sf::Vector2f(i * cellSize, r * cellSize), sf::Vector2f(cellSize, cellSize));
 
-            shapes.push_back(shape);
-
-            // Insert the index of the rectangle into the quadtree
-            quadtree.insert(shapes.size() - 1, shapes);
+            cells.push_back(c);
+            quadtree.insert(cells.size() - 1, cells);
         }
     }
 
@@ -176,21 +211,15 @@ int main() {
                     view.zoom(1.1f);
                 }
 
-                shapes.clear();
+                cells.clear();
                 quadtree.clear();
 
                 for (int i = 0; i < numCellsX; i++) {
                     for (int r = 0; r < numCellsY; r++) {
-                        sf::RectangleShape shape(sf::Vector2f(cellSize, cellSize));
-                        shape.setOutlineColor(sf::Color(50, 50, 50));
-                        shape.setFillColor(sf::Color(0, 0, 0));
-                        shape.setOutlineThickness(cellThickness);
-                        shape.setPosition(sf::Vector2f(i * cellSize, r * cellSize));
+                        Cell c(sf::Vector2f(i * cellSize, r * cellSize), sf::Vector2f(cellSize, cellSize));
 
-                        shapes.push_back(shape);
-
-                        // Insert the index of the rectangle into the quadtree
-                        quadtree.insert(shapes.size() - 1, shapes);
+                        cells.push_back(c);
+                        quadtree.insert(cells.size() - 1, cells);
                     }
                 }
             }
@@ -209,25 +238,32 @@ int main() {
         }
 
         // Retrieve rectangles potentially affected
-        auto closeRects = quadtree.retrieve(mouseRect, shapes);
+        auto closeRects = quadtree.retrieve(mouseRect, cells);
 
         // Reset all rectangles to black
-        for (auto& rect : shapes) {
-            rect.setFillColor(sf::Color(0, 0, 0));
+        for (auto& rect : cells) {
+            rect.shape.setFillColor(sf::Color(0, 0, 0));
         }
 
         // Set color to red if hovered
         for (auto rectIndex : closeRects) {
-            if (shapes[rectIndex].getGlobalBounds().contains(mouseWorldPos.x, mouseWorldPos.y)) {
-                shapes[rectIndex].setFillColor(sf::Color(255, 255, 255));
+            if (cells[rectIndex].shape.getGlobalBounds().contains(mouseWorldPos.x, mouseWorldPos.y)) {
+                std::vector<int> n = getNeighbors(rectIndex, numCellsX, numCellsY);
+                std::cout << "---" << std::endl;
+                for (auto i : n) {
+                    std::cout << i << std::endl;
+                    cells[i].shape.setFillColor(sf::Color(255, 0, 0));
+                }
+                std::cout << "---" << std::endl;
+                cells[rectIndex].shape.setFillColor(sf::Color(255, 255, 255));
             }
         }
 
         // Clear the window and draw all rectangles
         window.clear();
         window.setView(view);
-        for (const auto& rect : shapes) {
-            window.draw(rect);
+        for (const auto& rect : cells) {
+            window.draw(rect.shape);
         }
         window.display();
     }
