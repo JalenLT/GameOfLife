@@ -136,7 +136,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Cell.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Quadtree.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Cell.hpp" />
+    <ClInclude Include="Quadtree.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
