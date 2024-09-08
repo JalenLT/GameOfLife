@@ -44,17 +44,27 @@ int main() {
     std::vector<Cell> cells;
     Quadtree quadtree(sf::FloatRect(0, 0, windowWidth, windowHeight));
 
+    std::vector<std::vector<std::vector<int>>> timeline;
+    bool redraw = false;
+
     int numCellsX = windowWidth / cellSize;
     int numCellsY = windowHeight / cellSize;
 
+    std::vector<int> frameCell;
+    std::vector<std::vector<int>> frame;
     for (int i = 0; i < numCellsX; i++) {
         for (int r = 0; r < numCellsY; r++) {
+            frameCell.clear();
             Cell c(sf::Vector2f(i * cellSize, r * cellSize), sf::Vector2f(cellSize, cellSize));
 
             cells.push_back(c);
             quadtree.insert(cells.size() - 1, cells);
+            frameCell.push_back(0);
+            frameCell.push_back(c.isAlive);
+            frame.push_back(frameCell);
         }
     }
+    timeline.push_back(frame);
 
     std::map<std::string, int> currentEvents;
     currentEvents["holdingLeftClick"] = false;
@@ -65,9 +75,6 @@ int main() {
     std::vector<int> cursorPosition;
     cursorPosition.push_back(-99999);
     cursorPosition.push_back(-99999);
-
-    std::vector<std::vector<std::vector<int>>> timeline;
-    bool redraw = false;
 
     while (window.isOpen()) {
         sf::Event event;
@@ -103,7 +110,7 @@ int main() {
                 //DRAW BOARD
                 for (int i = 0; i < last.size(); i++)
                 {
-                    std::cout << last[i].size() << std::endl;
+                    cells[i].isAlive = last[i][1];
                 }
             }
 
@@ -143,6 +150,7 @@ int main() {
 
         // Retrieve rectangles potentially affected
         auto closeRects = quadtree.retrieve(mouseRect, cells);
+        auto& last = timeline.back();
 
         for (auto rectIndex : closeRects) {
             if (cells[rectIndex].shape.getGlobalBounds().contains(mouseWorldPos.x, mouseWorldPos.y)) {
@@ -159,9 +167,11 @@ int main() {
 
                 if (currentEvents["holdingRightClick"]) {
                     if (cellHeldState == "alive") {
+                        last[rectIndex][1] = 1;
                         cells[rectIndex].isAlive = true;
                     }
                     else if (cellHeldState == "dead") {
+                        last[rectIndex][1] = 0;
                         cells[rectIndex].isAlive = false;
                     }
                 }
@@ -176,6 +186,37 @@ int main() {
             for (size_t i = 0; i < cells.size(); ++i) {
                 frameCell.clear();
                 auto& rect = cells[i];  // Access the rect at index i
+                std::vector<int> neighbours = getNeighbors(i, numCellsX, numCellsY);
+                int liveNeighbours = 0;
+
+                /**
+                    RULES
+                    -----
+                    - Any live cell with fewer than two live neighbours dies, as if by underpopulation
+                    - Any live cell with two or three live neighbours lives on to the next generation
+                    - Any live cell with more than three live neighbours dies, as if by overpopulation
+                    - Any dead cell with exactly three live neighbours becomes a live cell, as if by reproduction
+                */
+
+                for (int r = 0; r < neighbours.size(); r++)
+                {
+                    if (last[neighbours[r]][1])
+                        liveNeighbours += 1;
+                }
+                
+                if (rect.isAlive == true && liveNeighbours < 2) {
+                    rect.isAlive = false;
+                }
+                else if (rect.isAlive == true && (liveNeighbours == 2 || liveNeighbours == 3)) {
+                    rect.isAlive = true; 
+                }
+                else if (rect.isAlive == true && liveNeighbours > 3) {
+                    rect.isAlive = false;
+                }
+                else if (rect.isAlive == false && liveNeighbours == 3) {
+                    rect.isAlive = true;
+                }
+
                 if (rect.isAlive) {
                     rect.shape.setFillColor(sf::Color(255, 255, 255));
                 }
@@ -187,7 +228,6 @@ int main() {
                 frame.push_back(frameCell);
             }
             timeline.push_back(frame);
-            std::cout << timeline.size() << std::endl;
             redraw = false;
         }
         else {
