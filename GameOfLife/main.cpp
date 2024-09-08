@@ -59,14 +59,15 @@ int main() {
     std::map<std::string, int> currentEvents;
     currentEvents["holdingLeftClick"] = false;
     currentEvents["holdingRightClick"] = false;
-    currentEvents["leftClick"] = false;
-    currentEvents["rightClick"] = false;
 
     std::string cellHeldState = "";
 
     std::vector<int> cursorPosition;
     cursorPosition.push_back(-99999);
     cursorPosition.push_back(-99999);
+
+    std::vector<std::vector<std::vector<int>>> timeline;
+    bool redraw = false;
 
     while (window.isOpen()) {
         sf::Event event;
@@ -91,6 +92,19 @@ int main() {
             if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Right) {
                 cellHeldState = "";
                 currentEvents["holdingRightClick"] = false;
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Right) {
+                redraw = true;
+            }
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Left && timeline.size() > 1) {
+                timeline.pop_back();
+                auto last = timeline[timeline.size() - 1];
+                //DRAW BOARD
+                for (int i = 0; i < last.size(); i++)
+                {
+                    std::cout << last[i].size() << std::endl;
+                }
             }
 
             if (event.type == sf::Event::MouseWheelScrolled) {
@@ -130,39 +144,61 @@ int main() {
         // Retrieve rectangles potentially affected
         auto closeRects = quadtree.retrieve(mouseRect, cells);
 
-        // Reset all rectangles to black
-        for (auto& rect : cells) {
-            if (rect.isAlive == true) {
-                rect.shape.setFillColor(sf::Color(255, 255, 255));
-            }
-            else {
-                rect.shape.setFillColor(sf::Color(0, 0, 0));
-            }
-        }
-
         for (auto rectIndex : closeRects) {
             if (cells[rectIndex].shape.getGlobalBounds().contains(mouseWorldPos.x, mouseWorldPos.y)) {
                 if (sf::Mouse::isButtonPressed(sf::Mouse::Right) && cellHeldState == "") {
-                    if (cells[rectIndex].isAlive == true) {
+                    if (cells[rectIndex].isAlive) {
                         cellHeldState = "dead";
                     }
-                    else if (cells[rectIndex].isAlive == false) {
+                    else if (!cells[rectIndex].isAlive) {
                         cellHeldState = "alive";
                     }
                 }
-                std::vector<int> n = getNeighbors(rectIndex, numCellsX, numCellsY);
-                
-                /*for (auto i : n) {
-                    cells[i].shape.setFillColor(sf::Color(255, 0, 0));
-                }*/
 
-                if (currentEvents["holdingRightClick"] == true) {
+                //std::vector<int> n = getNeighbors(rectIndex, numCellsX, numCellsY);
+
+                if (currentEvents["holdingRightClick"]) {
                     if (cellHeldState == "alive") {
-                        cells[rectIndex].shape.setFillColor(sf::Color(255, 255, 255));
                         cells[rectIndex].isAlive = true;
-                    } else if(cellHeldState == "dead") {
+                    }
+                    else if (cellHeldState == "dead") {
                         cells[rectIndex].isAlive = false;
                     }
+                }
+            }
+        }
+
+        if (redraw) {
+            std::vector<int> frameCell;
+            std::vector<std::vector<int>> frame;
+
+            // Reset all rectangles to black
+            for (size_t i = 0; i < cells.size(); ++i) {
+                frameCell.clear();
+                auto& rect = cells[i];  // Access the rect at index i
+                if (rect.isAlive) {
+                    rect.shape.setFillColor(sf::Color(255, 255, 255));
+                }
+                else {
+                    rect.shape.setFillColor(sf::Color(0, 0, 0));
+                }
+                frameCell.push_back(i);
+                frameCell.push_back(rect.isAlive);
+                frame.push_back(frameCell);
+            }
+            timeline.push_back(frame);
+            std::cout << timeline.size() << std::endl;
+            redraw = false;
+        }
+        else {
+            // Reset all rectangles to black
+            for (size_t i = 0; i < cells.size(); ++i) {
+                auto& rect = cells[i];  // Access the rect at index i
+                if (rect.isAlive) {
+                    rect.shape.setFillColor(sf::Color(255, 255, 255));
+                }
+                else {
+                    rect.shape.setFillColor(sf::Color(0, 0, 0));
                 }
             }
         }
@@ -174,10 +210,6 @@ int main() {
             window.draw(rect.shape);
         }
         window.display();
-
-        // RESET EVENTS THAT ARE INSTANCED
-        currentEvents["leftClick"] = false;
-        currentEvents["rightClick"] = false;
     }
 
     return 0;
