@@ -41,6 +41,10 @@ int main() {
     sf::RenderWindow window(sf::VideoMode(windowWidth, windowHeight), "SFML works!");
     sf::View view(sf::FloatRect(0, 0, windowWidth, windowHeight));
 
+    sf::Clock clock;
+    sf::Time updateInterval = sf::seconds(0.5);
+    bool startClock = false;
+
     std::vector<Cell> cells;
     Quadtree quadtree(sf::FloatRect(0, 0, windowWidth, windowHeight));
 
@@ -103,6 +107,7 @@ int main() {
 
             if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Right) {
                 redraw = true;
+                startClock = true;
             }
             if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Left && timeline.size() > 1) {
                 timeline.pop_back();
@@ -241,6 +246,13 @@ int main() {
                     rect.shape.setFillColor(sf::Color(0, 0, 0));
                 }
             }
+        }
+
+        if (startClock && clock.getElapsedTime() >= updateInterval) {
+            redraw = true;
+
+            // Restart the clock to reset the timer
+            clock.restart();
         }
         
         // Clear the window and draw all rectangles
